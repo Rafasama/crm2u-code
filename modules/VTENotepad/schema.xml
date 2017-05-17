@@ -1,0 +1,19 @@
+<?xml version='1.0'?>
+<schema>
+	<tables>
+		<table>
+			<name>vtiger_vtenotepad</name>
+			<sql><![CDATA[CREATE TABLE IF NOT EXISTS `vtiger_vtenotepad` (
+						  `id` int(19) NOT NULL AUTO_INCREMENT,
+						  `created` datetime NOT NULL,
+						  `updated` datetime NOT NULL,
+						  `deleted` int(1) NOT NULL DEFAULT '0',
+						  `user_id` INT(11) NOT NULL DEFAULT '0' COMMENT '// FK - with users table',
+						  `name` varchar(100),
+						  `content` text,
+						  `description` text,
+						  PRIMARY KEY (`id`)
+						) ENGINE=InnoDB  DEFAULT CHARSET=utf8;]]></sql>
+		</table>
+	</tables>
+</schema>

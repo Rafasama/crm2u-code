@@ -1,0 +1,22 @@
+#vtiger_vtenotepad-icon {
+    width: 22px;
+}
+
+.dropdown.mega-dropdown a {
+    box-shadow: none !important;
+}
+
+#vtiger_vtenotepad-container {
+    padding: 0 5px;
+}
+
+#vtiger_vtenotepad-container .btn-save {
+    float: right;
+    font-weight: bold;
+}
+
+#vtiger_vtenotepad-container textarea.vtiger_vtenotepad-content {
+    resize: vertical;
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
