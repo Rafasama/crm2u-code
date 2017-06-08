@@ -1,0 +1,19 @@
+<?xml version='1.0'?>
+<schema>
+	<tables>
+		<table>
+			<name>vtiger_vgsusersmtp</name>
+			<sql><![CDATA[CREATE TABLE `vtiger_vgsusersmtp` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `server_name` varchar(255) NOT NULL,
+  `user_name` varchar(255) NOT NULL,
+  `password` varchar(255) NOT NULL,
+  `email_from` varchar(255) NOT NULL,
+  `from_name` varchar(150) DEFAULT NULL,
+  `smtp_auth` varchar(3) DEFAULT NULL,
+  `userid` int(11) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8]]></sql>
+		</table>
+	</tables>
+</schema>

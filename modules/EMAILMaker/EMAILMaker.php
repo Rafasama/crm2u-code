@@ -1,0 +1,218 @@
+<?php
+/* * *******************************************************************************
+ * The content of this file is subject to the EMAIL Maker license.
+ * ("License"); You may not use this file except in compliance with the License
+ * The Initial Developer of the Original Code is IT-Solutions4You s.r.o.
+ * Portions created by IT-Solutions4You s.r.o. are Copyright(C) IT-Solutions4You s.r.o.
+ * All Rights Reserved.
+ * ****************************************************************************** */
+
+class EMAILMaker {
+    private $version_type;
+    private $license_key;
+    private $version_no;
+    private $basicModules;
+    private $pageFormats;
+    private $profilesActions;
+    private $profilesPermissions;
+    var $log;
+    var $db;
+
+    function __construct() {
+        $this->log = LoggerManager::getLogger('account');
+        $this->db = PearDatabase::getInstance();
+        $this->setLicenseInfo();
+        $this->basicModules = array("20", "21", "22", "23");
+        $this->profilesActions = array("EDIT" => "EditView",
+            "DETAIL" => "DetailView", // View
+            "DELETE" => "Delete", // Delete
+            "EXPORT_RTF" => "Export", // Export to RTF
+        );
+        $this->profilesPermissions = array();
+        $this->name = "EMAILMaker";
+        $this->id = getTabId("EMAILMaker");
+    }
+    
+    function vtlib_handler($modulename, $event_type) {
+        switch ($event_type) {
+            case 'module.postinstall':
+                $this->executeSql();
+                break;
+            case 'module.preupdate':
+                break;
+            case 'module.postupdate':
+                $this->db->pquery("UPDATE vtiger_links SET linkurl = ? WHERE linklabel = ? AND linktype = ? AND linkurl = ?",array('layouts/vlayout/modules/EMAILMaker/resources/EMAILMakerActions.js', 'EMAILMakerJS', 'HEADERSCRIPT', 'modules/EMAILMaker/EMAILMakerActions.js'));
+                $this->db->pquery("UPDATE vtiger_links SET linktype = ?, linklabel = ?, linkurl = ?  WHERE linktype = ? AND linkurl LIKE ?",array('LISTVIEWMASSACTION','Send Emails with EMAILMaker', 'javascript:EMAILMaker_Actions_Js.getListViewPopup(this,\'$'.'MODULE$\');', 'LISTVIEWBASIC', '%getEMAILListViewPopup%'));
+                $this->db->pquery("UPDATE vtiger_links SET linktype = ?, linkurl = ? WHERE linklabel = ? AND linktype = ? AND linkurl = ?", array('DETAILVIEWSIDEBARWIDGET', 'module=EMAILMaker&view=GetEMAILActions&record=$'.'RECORD$', 'EMAILMaker', 'DETAILVIEWWIDGET', 'module=EMAILMaker&action=EMAILMakerAjax&file=getEMAILActions&record=$'.'RECORD$'));
+
+                $res = $this->db->pquery("SELECT * FROM vtiger_profile2standardpermissions WHERE tabid=(SELECT tabid FROM vtiger_tab WHERE name = 'EMAILMaker')", array());
+                if ($this->db->num_rows($res) > 0) {
+                    $res = $this->db->pquery("SELECT * FROM vtiger_emakertemplates_profilespermissions", array());
+                    if ($this->db->num_rows($res) == 0) {
+                        $this->db->pquery("INSERT INTO vtiger_emakertemplates_profilespermissions SELECT profileid, operation, permissions FROM vtiger_profile2standardpermissions WHERE tabid = (SELECT tabid FROM vtiger_tab WHERE name = 'EMAILMaker')", array());
+                    }
+                    $this->db->pquery("DELETE FROM vtiger_profile2standardpermissions WHERE tabid = (SELECT tabid FROM vtiger_tab WHERE name = 'EMAILMaker')", array());
+                }
+                
+                $result2 = $this->db->pquery("SELECT license_info FROM vtiger_emakertemplates_license",array());
+                $num_rows2 = $this->db->num_rows($result2);
+
+                if ($num_rows2 > 0) {
+                    $license_info = $this->db->query_result($result2,0,"license_info");
+
+                    if ($license_info == "") {
+                        $this->removeLinks();
+                    }                        
+                }  
+                
+                break;
+            case 'module.preuninstall':
+                $this->removeLinks();
+                $this->removeWorkflows();
+                break;
+            case 'module.enabled':
+                break;
+        }
+    }
+    public function actualizeSeqTables() {
+		
+        if($this->db->num_rows($this->db->pquery("SELECT id FROM vtiger_emakertemplates_drips_seq", array()))<1){
+		  $this->db->pquery("INSERT INTO vtiger_emakertemplates_drips_seq VALUES (?)", array('0'));
+		}        
+        if($this->db->num_rows($this->db->pquery("SELECT id FROM vtiger_emakertemplates_drip_groups_seq", array()))<1){
+		  $this->db->pquery("INSERT INTO vtiger_emakertemplates_drip_groups_seq VALUES (?)", array('0'));
+		}        
+        if($this->db->num_rows($this->db->pquery("SELECT id FROM vtiger_emakertemplates_drip_tpls_seq", array()))<1){
+		  $this->db->pquery("INSERT INTO vtiger_emakertemplates_drip_tpls_seq VALUES (?)", array('0'));
+		}        
+        if($this->db->num_rows($this->db->pquery("SELECT id FROM vtiger_emakertemplates_seq", array()))<1){
+		  $this->db->pquery("INSERT INTO vtiger_emakertemplates_seq VALUES (?)", array('0'));
+		}        
+        if($this->db->num_rows($this->db->pquery("SELECT delay_active FROM vtiger_emakertemplates_delay", array()))<1){
+		  $this->db->pquery("INSERT INTO vtiger_emakertemplates_delay VALUES (?)", array('0'));
+		}        
+        if($this->db->num_rows($this->db->pquery("SELECT id FROM vtiger_emakertemplates_relblocks_seq", array()))<1){
+		  $this->db->pquery("INSERT INTO vtiger_emakertemplates_relblocks_seq VALUES (?)", array('0'));
+		}
+  }  
+  public function executeSql() {
+  
+        $this->actualizeSeqTables();
+        $productblocData="INSERT INTO `vtiger_emakertemplates_productbloc_tpl` (`id`, `name`, `body`) VALUES
+                      (1, 'product block for individual tax', 0x3c7461626c6520626f726465723d2231222063656c6c70616464696e673d2233222063656c6c73706163696e673d223022207374796c653d22666f6e742d73697a653a313070783b222077696474683d2231303025223e0d0a093c74626f64793e0d0a09093c7472206267636f6c6f723d2223633063306330223e0d0a0909093c7464207374796c653d22544558542d414c49474e3a2063656e746572223e0d0a090909093c7370616e3e3c7374726f6e673e506f733c2f7374726f6e673e3c2f7370616e3e3c2f74643e0d0a0909093c746420636f6c7370616e3d223222207374796c653d22544558542d414c49474e3a2063656e746572223e0d0a090909093c7370616e3e3c7374726f6e673e25475f517479253c2f7374726f6e673e3c2f7370616e3e3c2f74643e0d0a0909093c7464207374796c653d22544558542d414c49474e3a2063656e746572223e0d0a090909093c7370616e3e3c7370616e207374796c653d22666f6e742d7765696768743a20626f6c643b223e546578743c2f7370616e3e3c2f7370616e3e3c2f74643e0d0a0909093c7464207374796c653d22544558542d414c49474e3a2063656e746572223e0d0a090909093c7370616e3e3c7374726f6e673e25475f4c424c5f4c4953545f5052494345253c6272202f3e0d0a090909093c2f7374726f6e673e3c2f7370616e3e3c2f74643e0d0a0909093c7464207374796c653d22746578742d616c69676e3a2063656e7465723b223e0d0a090909093c7370616e3e3c7374726f6e673e25475f4c424c5f5355425f544f54414c253c2f7374726f6e673e3c2f7370616e3e3c2f74643e0d0a0909093c7464207374796c653d22544558542d414c49474e3a2063656e746572223e0d0a090909093c7370616e3e3c7374726f6e673e25475f446973636f756e74253c2f7374726f6e673e3c2f7370616e3e3c2f74643e0d0a0909093c7464207374796c653d22544558542d414c49474e3a2063656e746572223e0d0a090909093c7370616e3e3c7374726f6e673e25475f4c424c5f4e45545f5052494345253c6272202f3e0d0a090909093c2f7374726f6e673e3c2f7370616e3e3c2f74643e0d0a0909093c7464207374796c653d22746578742d616c69676e3a2063656e7465723b223e0d0a090909093c7370616e3e3c7374726f6e673e25475f54617825202825293c2f7374726f6e673e3c2f7370616e3e3c2f74643e0d0a0909093c7464207374796c653d22746578742d616c69676e3a2063656e7465723b223e0d0a090909093c7370616e3e3c7374726f6e673e25475f546178253c2f7374726f6e673e20283c7374726f6e673e2443555252454e4359434f4445243c2f7374726f6e673e293c2f7370616e3e3c2f74643e0d0a0909093c7464207374796c653d22746578742d616c69676e3a2063656e7465723b223e0d0a090909093c7370616e3e3c7374726f6e673e254d5f546f74616c253c2f7374726f6e673e3c2f7370616e3e3c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c746420636f6c7370616e3d223131223e0d0a090909092350524f44554354424c4f435f5354415254233c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c7464207374796c653d22746578742d616c69676e3a2063656e7465723b20766572746963616c2d616c69676e3a20746f703b223e0d0a090909092450524f44554354504f534954494f4e243c2f74643e0d0a0909093c746420616c69676e3d227269676874222076616c69676e3d22746f70223e0d0a090909092450524f445543545155414e54495459243c2f74643e0d0a0909093c746420616c69676e3d226c65667422207374796c653d22544558542d414c49474e3a2063656e746572222076616c69676e3d22746f70223e0d0a090909092450524f445543545553414745554e4954243c2f74643e0d0a0909093c746420616c69676e3d226c656674222076616c69676e3d22746f70223e0d0a090909092450524f445543544e414d45243c2f74643e0d0a0909093c746420616c69676e3d22726967687422207374796c653d22746578742d616c69676e3a2072696768743b222076616c69676e3d22746f70223e0d0a090909092450524f445543544c4953545052494345243c2f74643e0d0a0909093c746420616c69676e3d22726967687422207374796c653d22544558542d414c49474e3a207269676874222076616c69676e3d22746f70223e0d0a090909092450524f44554354544f54414c243c2f74643e0d0a0909093c746420616c69676e3d22726967687422207374796c653d22544558542d414c49474e3a207269676874222076616c69676e3d22746f70223e0d0a090909092450524f44554354444953434f554e54243c2f74643e0d0a0909093c746420616c69676e3d22726967687422207374796c653d22746578742d616c69676e3a2072696768743b222076616c69676e3d22746f70223e0d0a090909092450524f4455435453544f54414c4146544552444953434f554e54243c2f74643e0d0a0909093c746420616c69676e3d22726967687422207374796c653d22746578742d616c69676e3a2072696768743b222076616c69676e3d22746f70223e0d0a090909092450524f4455435456415450455243454e54243c2f74643e0d0a0909093c746420616c69676e3d22726967687422207374796c653d22746578742d616c69676e3a2072696768743b222076616c69676e3d22746f70223e0d0a090909092450524f4455435456415453554d243c2f74643e0d0a0909093c746420616c69676e3d22726967687422207374796c653d22544558542d414c49474e3a207269676874222076616c69676e3d22746f70223e0d0a090909092450524f44554354544f54414c53554d243c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c746420636f6c7370616e3d223131223e0d0a090909092350524f44554354424c4f435f454e44233c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c746420636f6c7370616e3d22313022207374796c653d22544558542d414c49474e3a206c656674223e0d0a0909090925475f4c424c5f544f54414c253c2f74643e0d0a0909093c7464207374796c653d22544558542d414c49474e3a207269676874223e0d0a0909090924544f54414c574954484f5554564154243c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c746420636f6c7370616e3d22313022207374796c653d22544558542d414c49474e3a206c656674223e0d0a0909090925475f446973636f756e74253c2f74643e0d0a0909093c7464207374796c653d22544558542d414c49474e3a207269676874223e0d0a0909090924544f54414c444953434f554e54243c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c746420636f6c7370616e3d22313022207374796c653d22544558542d414c49474e3a206c656674223e0d0a0909090925475f4c424c5f4e45545f544f54414c253c2f74643e0d0a0909093c7464207374796c653d22544558542d414c49474e3a207269676874223e0d0a0909090924544f54414c4146544552444953434f554e54243c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c746420636f6c7370616e3d22313022207374796c653d22746578742d616c69676e3a206c6566743b223e0d0a0909090925475f54617825202456415450455243454e542420252025475f4c424c5f4c4953545f4f46252024544f54414c4146544552444953434f554e54243c2f74643e0d0a0909093c7464207374796c653d22746578742d616c69676e3a2072696768743b223e0d0a0909090924564154243c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c746420636f6c7370616e3d22313022207374796c653d22746578742d616c69676e3a206c6566743b223e0d0a09090909546f74616c2077697468205441583c2f74643e0d0a0909093c7464207374796c653d22746578742d616c69676e3a2072696768743b223e0d0a0909090924544f54414c57495448564154243c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c746420636f6c7370616e3d22313022207374796c653d22746578742d616c69676e3a206c6566743b223e0d0a0909090925475f4c424c5f5348495050494e475f414e445f48414e444c494e475f43484152474553253c2f74643e0d0a0909093c7464207374796c653d22746578742d616c69676e3a2072696768743b223e0d0a09090909245348544158414d4f554e54243c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c746420636f6c7370616e3d22313022207374796c653d22544558542d414c49474e3a206c656674223e0d0a0909090925475f4c424c5f5441585f464f525f5348495050494e475f414e445f48414e444c494e47253c2f74643e0d0a0909093c7464207374796c653d22544558542d414c49474e3a207269676874223e0d0a09090909245348544158544f54414c243c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c746420636f6c7370616e3d22313022207374796c653d22544558542d414c49474e3a206c656674223e0d0a0909090925475f41646a7573746d656e74253c2f74643e0d0a0909093c7464207374796c653d22544558542d414c49474e3a207269676874223e0d0a090909092441444a5553544d454e54243c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c746420636f6c7370616e3d22313022207374796c653d22544558542d414c49474e3a206c656674223e0d0a090909093c7370616e207374796c653d22666f6e742d7765696768743a20626f6c643b223e25475f4c424c5f4752414e445f544f54414c25203c2f7370616e3e3c7374726f6e673e282443555252454e4359434f444524293c2f7374726f6e673e3c2f74643e0d0a0909093c7464206e6f777261703d226e6f7772617022207374796c653d22544558542d414c49474e3a207269676874223e0d0a090909093c7374726f6e673e24544f54414c243c2f7374726f6e673e3c2f74643e0d0a09093c2f74723e0d0a093c2f74626f64793e0d0a3c2f7461626c653e),
+                      (2, 'product block for group tax', 0x3c7461626c6520626f726465723d2231222063656c6c70616464696e673d2233222063656c6c73706163696e673d223022207374796c653d22666f6e742d73697a653a313070783b222077696474683d2231303025223e0d0a093c74626f64793e0d0a09093c7472206267636f6c6f723d2223633063306330223e0d0a0909093c7464207374796c653d22544558542d414c49474e3a2063656e746572223e0d0a090909093c7370616e3e3c7374726f6e673e506f733c2f7374726f6e673e3c2f7370616e3e3c2f74643e0d0a0909093c746420636f6c7370616e3d223222207374796c653d22544558542d414c49474e3a2063656e746572223e0d0a090909093c7370616e3e3c7374726f6e673e25475f517479253c2f7374726f6e673e3c2f7370616e3e3c2f74643e0d0a0909093c7464207374796c653d22544558542d414c49474e3a2063656e746572223e0d0a090909093c7370616e3e3c7370616e207374796c653d22666f6e742d7765696768743a20626f6c643b223e546578743c2f7370616e3e3c2f7370616e3e3c2f74643e0d0a0909093c7464207374796c653d22544558542d414c49474e3a2063656e746572223e0d0a090909093c7370616e3e3c7374726f6e673e25475f4c424c5f4c4953545f5052494345253c6272202f3e0d0a090909093c2f7374726f6e673e3c2f7370616e3e3c2f74643e0d0a0909093c7464207374796c653d22746578742d616c69676e3a2063656e7465723b223e0d0a090909093c7370616e3e3c7374726f6e673e25475f4c424c5f5355425f544f54414c253c2f7374726f6e673e3c2f7370616e3e3c2f74643e0d0a0909093c7464207374796c653d22544558542d414c49474e3a2063656e746572223e0d0a090909093c7370616e3e3c7374726f6e673e25475f446973636f756e74253c2f7374726f6e673e3c2f7370616e3e3c2f74643e0d0a0909093c7464207374796c653d22544558542d414c49474e3a2063656e746572223e0d0a090909093c7370616e3e3c7374726f6e673e25475f4c424c5f4e45545f5052494345253c6272202f3e0d0a090909093c2f7374726f6e673e3c2f7370616e3e3c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c746420636f6c7370616e3d2238223e0d0a090909092350524f44554354424c4f435f5354415254233c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c7464207374796c653d22746578742d616c69676e3a2063656e7465723b20766572746963616c2d616c69676e3a20746f703b223e0d0a090909092450524f44554354504f534954494f4e243c2f74643e0d0a0909093c746420616c69676e3d227269676874222076616c69676e3d22746f70223e0d0a090909092450524f445543545155414e54495459243c2f74643e0d0a0909093c746420616c69676e3d226c65667422207374796c653d22544558542d414c49474e3a2063656e746572222076616c69676e3d22746f70223e0d0a090909092450524f445543545553414745554e4954243c2f74643e0d0a0909093c746420616c69676e3d226c656674222076616c69676e3d22746f70223e0d0a090909092450524f445543544e414d45243c2f74643e0d0a0909093c746420616c69676e3d22726967687422207374796c653d22746578742d616c69676e3a2072696768743b222076616c69676e3d22746f70223e0d0a090909092450524f445543544c4953545052494345243c2f74643e0d0a0909093c746420616c69676e3d22726967687422207374796c653d22544558542d414c49474e3a207269676874222076616c69676e3d22746f70223e0d0a090909092450524f44554354544f54414c243c2f74643e0d0a0909093c746420616c69676e3d22726967687422207374796c653d22544558542d414c49474e3a207269676874222076616c69676e3d22746f70223e0d0a090909092450524f44554354444953434f554e54243c2f74643e0d0a0909093c746420616c69676e3d22726967687422207374796c653d22746578742d616c69676e3a2072696768743b222076616c69676e3d22746f70223e0d0a090909092450524f4455435453544f54414c4146544552444953434f554e54243c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c746420636f6c7370616e3d2238223e0d0a090909092350524f44554354424c4f435f454e44233c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c746420636f6c7370616e3d223722207374796c653d22544558542d414c49474e3a206c656674223e0d0a0909090925475f4c424c5f544f54414c253c2f74643e0d0a0909093c7464207374796c653d22544558542d414c49474e3a207269676874223e0d0a0909090924544f54414c574954484f5554564154243c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c746420636f6c7370616e3d223722207374796c653d22544558542d414c49474e3a206c656674223e0d0a0909090925475f446973636f756e74253c2f74643e0d0a0909093c7464207374796c653d22544558542d414c49474e3a207269676874223e0d0a0909090924544f54414c444953434f554e54243c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c746420636f6c7370616e3d223722207374796c653d22544558542d414c49474e3a206c656674223e0d0a0909090925475f4c424c5f4e45545f544f54414c253c2f74643e0d0a0909093c7464207374796c653d22544558542d414c49474e3a207269676874223e0d0a0909090924544f54414c4146544552444953434f554e54243c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c746420636f6c7370616e3d223722207374796c653d22746578742d616c69676e3a206c6566743b223e0d0a0909090925475f54617825202456415450455243454e542420252025475f4c424c5f4c4953545f4f46252024544f54414c4146544552444953434f554e54243c2f74643e0d0a0909093c7464207374796c653d22746578742d616c69676e3a2072696768743b223e0d0a0909090924564154243c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c746420636f6c7370616e3d223722207374796c653d22746578742d616c69676e3a206c6566743b223e0d0a09090909546f74616c2077697468205441583c2f74643e0d0a0909093c7464207374796c653d22746578742d616c69676e3a2072696768743b223e0d0a0909090924544f54414c57495448564154243c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c746420636f6c7370616e3d223722207374796c653d22746578742d616c69676e3a206c6566743b223e0d0a0909090925475f4c424c5f5348495050494e475f414e445f48414e444c494e475f43484152474553253c2f74643e0d0a0909093c7464207374796c653d22746578742d616c69676e3a2072696768743b223e0d0a09090909245348544158414d4f554e54243c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c746420636f6c7370616e3d223722207374796c653d22544558542d414c49474e3a206c656674223e0d0a0909090925475f4c424c5f5441585f464f525f5348495050494e475f414e445f48414e444c494e47253c2f74643e0d0a0909093c7464207374796c653d22544558542d414c49474e3a207269676874223e0d0a09090909245348544158544f54414c243c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c746420636f6c7370616e3d223722207374796c653d22544558542d414c49474e3a206c656674223e0d0a0909090925475f41646a7573746d656e74253c2f74643e0d0a0909093c7464207374796c653d22544558542d414c49474e3a207269676874223e0d0a090909092441444a5553544d454e54243c2f74643e0d0a09093c2f74723e0d0a09093c74723e0d0a0909093c746420636f6c7370616e3d223722207374796c653d22544558542d414c49474e3a206c656674223e0d0a090909093c7370616e207374796c653d22666f6e742d7765696768743a20626f6c643b223e25475f4c424c5f4752414e445f544f54414c25203c2f7370616e3e3c7374726f6e673e282443555252454e4359434f444524293c2f7374726f6e673e3c2f74643e0d0a0909093c7464206e6f777261703d226e6f7772617022207374796c653d22544558542d414c49474e3a207269676874223e0d0a090909093c7374726f6e673e24544f54414c243c2f7374726f6e673e3c2f74643e0d0a09093c2f74723e0d0a093c2f74626f64793e0d0a3c2f7461626c653e)";
+        $this->db->pquery($productblocData, array());
+        $this->actualizeLinks();   
+    }    
+    public function actualizeLinks() { 
+        $sql = "SELECT * FROM vtiger_links WHERE ((linktype = ? AND linkurl LIKE ?) OR (linktype = ? AND linkurl LIKE ?))";
+        $result = $this->db->pquery($sql, array('LISTVIEWMASSACTION','%EMAILMaker_Actions_Js%','DETAILVIEWSIDEBARWIDGET', 'module=EMAILMaker&view=GetEMAILActions&record=%'));
+        $num_rows = $this->db->num_rows($result); 
+
+        if ($num_rows == 0) {
+            $sql2 = "SELECT * FROM vtiger_tab WHERE isentitytype=1 AND tabid NOT IN (9, 10, 16, 28) AND name != ?";
+            $result2 = $this->db->pquery($sql2,array('EMAILMaker'));
+            while($row2 = $this->db->fetchByAssoc($result2)) {
+                $this->AddLinks($row2['tabid'],$row2['name']);
+            }
+        } 
+    }  
+    public function AddLinks($modulename){
+        require_once('vtlib/Vtiger/Module.php');
+        $link_module = Vtiger_Module::getInstance($modulename);
+        $link_module->addLink('DETAILVIEWSIDEBARWIDGET', 'EMAILMaker', 'module=EMAILMaker&view=GetEMAILActions&record=$RECORD$');
+        $link_module->addLink('LISTVIEWMASSACTION', 'Send Emails with EMAILMaker', 'javascript:EMAILMaker_Actions_Js.getListViewPopup(this,\'$'.'MODULE$\');');
+        // remove non-standardly created links (difference in linkicon column makes the links twice when updating from previous version)
+        global $adb;
+        $tabid = getTabId($modulename);
+        $res = $adb->pquery("SELECT * FROM vtiger_links WHERE tabid=? AND linktype=? AND linklabel=? AND linkurl=? ORDER BY linkid DESC", array($tabid, 'DETAILVIEWSIDEBARWIDGET', 'EMAILMaker', 'module=EMAILMaker&view=GetEMAILActions&record=$RECORD$'));
+        $i = 0;
+        while ($row = $adb->fetchByAssoc($res)){
+            $i++;
+            if ($i > 1)
+                $adb->pquery("DELETE FROM vtiger_links WHERE linkid=?", array($row['linkid']));
+        }
+        $res = $adb->pquery("SELECT * FROM vtiger_links WHERE tabid=? AND linktype=? AND linklabel=? AND linkurl=? ORDER BY linkid DESC", array($tabid, 'LISTVIEWMASSACTION', 'Send Emails with EMAILMaker', 'javascript:EMAILMaker_Actions_Js.getListViewPopup(this,\'$'.'MODULE$\');'));
+        $i = 0;
+        while ($row = $adb->fetchByAssoc($res)){
+            $i++;
+            if ($i > 1)
+                $adb->pquery("DELETE FROM vtiger_links WHERE linkid=?", array($row['linkid']));
+        }
+    }
+    public function removeLinks(){
+        require_once('vtlib/Vtiger/Link.php');
+        $tabid = getTabId("EMAILMaker");
+        Vtiger_Link::deleteAll($tabid);
+        $this->DeleteAllRefLinks();
+    }
+    public function DeleteAllRefLinks(){
+        require_once('vtlib/Vtiger/Link.php');
+        $link_res = $this->db->pquery("SELECT tabid FROM vtiger_tab WHERE isentitytype = ?",array('1'));
+        while ($link_row = $this->db->fetchByAssoc($link_res)) {
+            Vtiger_Link::deleteLink($link_row["tabid"], "DETAILVIEWSIDEBARWIDGET", "EMAILMaker");
+            Vtiger_Link::deleteLink($link_row["tabid"], "LISTVIEWMASSACTION", "Send Emails with EMAILMaker", 'javascript:EMAILMaker_Actions_Js.getListViewPopup(this,\'$'.'MODULE$\');');
+        }
+    }
+    private function setLicenseInfo(){
+        $this->version_no = EMAILMaker_Version_Helper::$version;
+    }
+    public function GetVersionType(){
+        return $this->version_type;
+    }
+    public function GetLicenseKey(){
+        return $this->license_key;
+    }
+    public function GetPageFormats(){
+        return $this->pageFormats;
+    }
+    public function GetBasicModules(){
+        return $this->basicModules;
+    }
+    public function GetProfilesActions(){
+        return $this->profilesActions;
+    }    
+    public function installWorkflows(){
+        $this->installWorkflow("VTEMAILMakerMailTask","Send Email from EMAIL Maker");
+    }   
+    public function installWorkflow($name,$info){
+        $file_exist = false;
+        $dest1 = "modules/com_vtiger_workflow/tasks/".$name.".inc";
+        $source1 = "modules/EMAILMaker/workflow/".$name.".inc";
+        if (file_exists($dest1)) {
+            $file_exist1 = true;
+        } else {
+            if(copy($source1, $dest1)) {
+                $file_exist1 = true;
+            }        
+        }         
+        $dest2 = "layouts/vlayout/modules/Settings/Workflows/Tasks/".$name.".tpl";
+        $source2 = "layouts/vlayout/modules/EMAILMaker/taskforms/".$name.".tpl";
+        if (file_exists($dest2)) {
+            $file_exist2 = true;
+        } else {
+            if(copy($source2, $dest2)) {
+                $file_exist2 = true;
+            }        
+        } 
+        if ($file_exist1 && $file_exist2) {
+            $sql1 = "SELECT * FROM com_vtiger_workflow_tasktypes WHERE tasktypename = ?";
+            $result1 = $this->db->pquery($sql1,array($name));
+            if ($this->db->num_rows($result1) == 0) {
+                $workflow_id = $this->db->getUniqueID("com_vtiger_workflow_tasktypes");
+                $sql2 = "INSERT INTO `com_vtiger_workflow_tasktypes` (`id`, `tasktypename`, `label`, `classname`, `classpath`, `templatepath`, `modules`, `sourcemodule`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                $this->db->pquery($sql2,array($workflow_id, $name, $info, $name, $source1, 'modules/EMAILMaker/taskforms/'.$name.'.tpl', '{"include":[],"exclude":[]}', 'EMAILMaker'));
+            }
+        }
+    }    
+    private function removeWorkflows(){
+        $sql1 = "DELETE FROM com_vtiger_workflow_tasktypes WHERE sourcemodule = ?";
+        $this->db->pquery($sql1,array('EMAILMaker'));
+        
+        $sql2 = "DELETE FROM com_vtiger_workflowtasks WHERE task LIKE ?";
+        $this->db->pquery($sql2,array('%:"VTEMAILMakerMailTask":%'));
+        
+        @shell_exec('rm -f modules/com_vtiger_workflow/tasks/VTEMAILMakerMailTask.inc');
+        @shell_exec('rm -f layouts/vlayout/modules/Settings/Workflows/Tasks/VTEMAILMakerMailTask.tpl');
+    }
+}

@@ -157,7 +157,7 @@ input[type="text"]:focus, input[type="password"]:focus {    border-bottom: 1px s
 													
 				<div class="controls">
 					<span class="btn btn-blue login-icon"> <i class="fa fa-user"></i> </span>
-														<input type="text" id="user_name" name="user_name" placeholder="Username">
+														<input type="text" id="user_name" name="user_name" onkeyup="return forceLower(this);" placeholder="Username">
 				</div>
 			</div>
 												<div class="control-group">
@@ -203,6 +203,11 @@ input[type="text"]:focus, input[type="password"]:focus {    border-bottom: 1px s
 		</div>
 	</body>
 	<script>
+
+                function forceLower(strInput) 
+                {
+                  strInput.value=strInput.value.toLowerCase();
+                }​
 		jQuery(document).ready(function(){
 			jQuery("#forgotPassword a").click(function() {
 				jQuery("#loginDiv").hide();
