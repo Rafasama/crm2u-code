@@ -51,7 +51,7 @@ $dbconfig['db_server'] = 'localhost';
 $dbconfig['db_port'] = ':3306';
 $dbconfig['db_username'] = 'rz2ac608_crm2u';
 $dbconfig['db_password'] = 'AltaRafa@1520';
-$dbconfig['db_name'] = 'rz2ac608_db_crm2u_poc';
+$dbconfig['db_name'] = 'rz2ac608_crm2u_matriz';
 $dbconfig['db_type'] = 'mysqli';
 $dbconfig['db_status'] = 'true';
 
@@ -78,16 +78,16 @@ $dbconfigoption['seqname_format'] = '%s_seq';
 $dbconfigoption['portability'] = 0;
 
 // ssl default value = false
-$dbconfigoption['ssl'] = false;
+$dbconfigoption['ssl'] = true;
 
 $host_name = $dbconfig['db_hostname'];
 
-$site_URL = 'http://crm2u.com.br/poc/';
+$site_URL = 'https://crm2u.com.br/matriz/';
 
 // url for customer portal (Example: http://vtiger.com/portal)
 $PORTAL_URL = $site_URL.'/customerportal';
 // root directory path
-$root_directory = '/home/rz2ac608/public_html/crm2u.com.br/poc/';
+$root_directory = '/home/rz2ac608/public_html/crm2u.com.br/matriz/';
 
 // cache direcory path
 $cache_dir = 'cache/';
@@ -186,7 +186,7 @@ $display_empty_home_blocks = false;
 $disable_stats_tracking = false;
 
 // Generating Unique Application Key
-$application_unique_key = 'a4d1aaafde8449043b1268b282a2a409';
+$application_unique_key = '80e042e21823cec94192fca41916c1bb';
 
 // trim descriptions, titles in listviews to this value
 $listview_max_textlength = 40;
