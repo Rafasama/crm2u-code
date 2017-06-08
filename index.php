@@ -14,7 +14,7 @@ include_once 'include/Webservices/Relation.php';
 include_once 'vtlib/Vtiger/Module.php';
 include_once 'includes/main/WebUI.php';
 
-session_set_cookie_params(0,"/crm2u/"); 
+session_set_cookie_params(0,"/matriz/"); 
 session_start();
 
 $webUI = new Vtiger_WebUI();
